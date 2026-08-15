@@ -112,7 +112,7 @@ async function fetchPortfolio(apiBaseUrl, attempt = 1) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
     try {
-        const endpoint = `${apiBaseUrl}/api/v2/portfolio/${encodeURIComponent(API_CONFIG.profileId)}`;
+        const endpoint = `${apiBaseUrl}/api/v3/portfolio/${encodeURIComponent(API_CONFIG.profileId)}`;
         const response = await fetch(endpoint, {
             signal: controller.signal, headers: { 'Content-Type': 'application/json' }
         });
@@ -139,6 +139,26 @@ function setFavicon(primaryCdn, userUploadBlob) {
         document.head.appendChild(link);
     }
     link.href = href;
+}
+
+/**
+ * Safely sets the document background image with a subtle dark overlay if valid.
+ */
+function applyCustomBackground(url) {
+    if (!url || typeof url !== 'string' || !url.trim()) return;
+
+    const img = new Image();
+    img.onload = () => {
+        // Blends a 40% black overlay over the image
+        document.body.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.9)), url("${url}")`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundRepeat = 'no-repeat';
+        document.body.style.backgroundAttachment = 'fixed';
+    };
+    // On failure/broken URL, do nothing (preserves default background styling)
+    img.onerror = () => {};
+    img.src = url;
 }
 
 async function fetchConfig(attempt = 1) {
@@ -239,6 +259,11 @@ function renderSite(config) {
 
     const discordId = config.config?.discordId;
     
+    // Apply background image if present and valid in custom_data
+    if (config.custom_data?.bg_img_url) {
+        applyCustomBackground(config.custom_data.bg_img_url);
+    }
+
     body.innerHTML += renderHeader(config.header, config._sys, discordId);
     body.innerHTML += `<main>${config.sections.map(section => renderSection(section)).join('\n')}</main>`;
     body.innerHTML += renderFooter(config.footer);
