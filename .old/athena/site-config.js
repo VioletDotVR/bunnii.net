@@ -1,3 +1,4 @@
+// site-config.js
 import { initLanyard } from './status.js';
 
 // API Configuration
@@ -16,13 +17,14 @@ const FALLBACK_CONFIG = {
     footer: { text: `© ${new Date().getFullYear()} miaadev.` }
 };
 
+// Loading indicator functions
 function showLoading() {
     const loader = document.createElement('div');
     loader.id = 'loading-indicator';
     loader.innerHTML = `
-        <div class="spinner"></div>
-        <p>Loading site data...</p>
-    `;
+    <div class="spinner"></div>
+    <p>Loading site data...</p>
+  `;
     document.body.appendChild(loader);
 }
 
@@ -38,10 +40,10 @@ function showError(message) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
     errorDiv.innerHTML = `
-        <h2>⚠️ Error Loading Site</h2>
-        <p>${escapeHtml(message)}</p>
-        <p>Using fallback configuration...</p>
-    `;
+    <h2>⚠️ Error Loading Site</h2>
+    <p>${escapeHtml(message)}</p>
+    <p>Using fallback configuration...</p>
+  `;
     document.body.insertBefore(errorDiv, document.body.firstChild);
     setTimeout(() => {
         errorDiv.classList.add('fade-out');
@@ -64,7 +66,6 @@ async function resolveNameserverRecord() {
     }
 }
 
-// UPDATED: Fetch Product (v1) - Now includes Lanyard Config fields
 async function fetchProduct(apiBaseUrl, attempt = 1) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
@@ -85,7 +86,28 @@ async function fetchProduct(apiBaseUrl, attempt = 1) {
     }
 }
 
-// Fetch Portfolio (v3)
+// NEW: Fetch System Config (v2)
+async function fetchSystemConfig(apiBaseUrl, attempt = 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/v2/config`, {
+            signal: controller.signal, headers: { 'Content-Type': 'application/json' }
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (attempt < API_CONFIG.retryAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            return fetchSystemConfig(apiBaseUrl, attempt + 1);
+        }
+        throw error;
+    }
+}
+
+// UPDATED: Fetch Portfolio (v2)
 async function fetchPortfolio(apiBaseUrl, attempt = 1) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
@@ -119,17 +141,23 @@ function setFavicon(primaryCdn, userUploadBlob) {
     link.href = href;
 }
 
+/**
+ * Safely sets the document background image with a subtle dark overlay if valid.
+ */
 function applyCustomBackground(url) {
     if (!url || typeof url !== 'string' || !url.trim()) return;
 
     const img = new Image();
     img.onload = () => {
-        document.body.style.backgroundImage = `linear-gradient(rgba(18, 18, 24, 0.75), rgba(18, 18, 24, 0.92)), url("${url}")`;
+        // Blends a 40% black overlay over the image
+        document.body.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.9)), url("${url}")`;
         document.body.style.backgroundSize = 'cover';
         document.body.style.backgroundPosition = 'center';
         document.body.style.backgroundRepeat = 'no-repeat';
         document.body.style.backgroundAttachment = 'fixed';
     };
+    // On failure/broken URL, do nothing (preserves default background styling)
+    img.onerror = () => {};
     img.src = url;
 }
 
@@ -139,20 +167,19 @@ async function fetchConfig(attempt = 1) {
     try {
         const { apiBaseUrl, primaryCdn } = await resolveNameserverRecord();
 
-        const [productResult, portfolioData] = await Promise.all([
+        const [productResult, systemConfig, portfolioData] = await Promise.all([
             fetchProduct(apiBaseUrl).catch(() => null),
+            fetchSystemConfig(apiBaseUrl).catch(() => ({ useLanyard: false })), // graceful fallback
             fetchPortfolio(apiBaseUrl)
         ]);
 
-        if (productResult?.user_upload_blob) {
-            setFavicon(primaryCdn, productResult.user_upload_blob);
-        }
+        if (productResult) setFavicon(primaryCdn, productResult.user_upload_blob);
 
         clearTimeout(timeoutId);
         if (!validateConfig(portfolioData)) throw new Error('Invalid configuration format received from API');
         
-        // Attach product-level Lanyard config to portfolio payload
-        portfolioData._product = productResult || {};
+        // Attach system config to portfolio payload to pass down to rendering
+        portfolioData._sys = systemConfig;
         return portfolioData;
     } catch (error) {
         clearTimeout(timeoutId);
@@ -171,92 +198,52 @@ function validateConfig(data) {
         data.footer && typeof data.footer.text === 'string');
 }
 
-// Render Functions based on sketch layout
-function renderHeader(header, customData, lanyardConfig) {
-    // Extract the new owner_profile structure, defaulting to an empty object
-    const owner = customData?.owner_profile || {};
-    
-    // Prioritize the owner profile avatar, then fall back to previous logic
-    const profilePicUrl = owner.avatar_url || customData?.profile_picture_url || customData?.avatar_url || 'https://via.placeholder.com/120';
-    
-    // Use the owner name, fallback to the standard header name
-    const displayName = owner.name || header.name;
-
+// Render functions
+function renderHeader(header, sysConfig, discordId) {
     let statusHTML = '';
-    if (lanyardConfig?.useLanyard && lanyardConfig?.discordId) {
+    
+    // Conditionally inject status HTML if Lanyard is enabled and Discord ID exists
+    if (sysConfig?.useLanyard && discordId) {
         statusHTML = `
         <div class="discord-status-container" id="discord-status-container">
             <div class="status-dot offline" id="status-dot"></div>
             <span id="discord-username" class="discord-username">Loading user...</span>
-            <span class="status-divider">•</span>
-            <span id="status-text" class="discord-activity">Offline</span>
+            <span class="status-divider"></span>
+            <span id="status-text" class="discord-activity">Loading status...</span>
         </div>`;
     }
 
-    // Build the badges dynamically based on what is available in owner_profile
-    let badgesHTML = '';
-    if (owner.pronouns) {
-        badgesHTML += `<span class="badge">${escapeHtml(owner.pronouns)}</span>`;
-    }
-    if (owner.age) {
-        badgesHTML += `<span class="badge">${escapeHtml(String(owner.age))} yrs</span>`;
-    }
-    if (typeof owner.relationship === 'boolean') {
-        const relText = owner.relationship ? 'Taken 💖' : 'Single 💔';
-        badgesHTML += `<span class="badge badge-pink">${relText}</span>`;
-    }
-
     return `
-    <header class="header-card">
-      <div class="profile-header-top">
-        <img src="${escapeHtml(profilePicUrl)}" alt="${escapeHtml(displayName)}" class="profile-avatar" />
-        <div class="profile-header-info">
-          <h1>
-            ${escapeHtml(displayName)} 
-            ${owner.username ? `<span class="owner-username">@${escapeHtml(owner.username)}</span>` : ''}
-          </h1>
-          ${badgesHTML ? `<div class="profile-badges">${badgesHTML}</div>` : ''}
-          <p class="tagline">${escapeHtml(header.tagline)}</p>
-          ${statusHTML}
-        </div>
-      </div>
+    <header>
+      <h1>${escapeHtml(header.name)}</h1>
+      <p>${escapeHtml(header.tagline)}</p>
+      ${statusHTML}
     </header>
   `;
 }
 
-function renderSection(section, index) {
-    // Add grid classification based on position to mirror layout sketch
-    const gridClass = index < 2 ? 'grid-item-half' : 'grid-item-full';
-
+function renderSection(section) {
     return `
-    <fieldset class="${gridClass}">
+    <fieldset>
       <legend>${escapeHtml(section.legend)}</legend>
-      <div class="section-body">
-        ${renderSectionContent(section.content)}
-      </div>
+      ${renderSectionContent(section.content)}
     </fieldset>
   `;
 }
 
 function renderSectionContent(content) {
     switch (content.type) {
-        case 'text': 
-            return `<p>${escapeHtml(content.text)}</p>`;
-        case 'list': 
-            return `<ul>${content.items.map(item => `<li>${escapeHtml(item)}</li>`).join('\n')}</ul>`;
-        case 'projects': 
-            return content.projects.map(project => `
-            <div class="project">
-              <h3>${escapeHtml(project.title)}</h3>
-              <p>${escapeHtml(project.description)}${project.url ? ` <a href="${escapeHtml(project.url)}" target="_blank" rel="noopener">View Project &rarr;</a>` : ''}</p>
-              ${project.tags ? `<div class="tags">${project.tags.map(tag => `<code>${escapeHtml(tag)}</code>`).join('')}</div>` : ''}
-            </div>`).join('\n');
-        case 'links': 
-            return `<div class="links">${content.links.map(link => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.text)}</a>`).join('<span class="link-separator">•</span>')}</div>`;
-        case 'html': 
-            return content.html;
-        default: 
-            return '';
+        case 'text': return `<p>${escapeHtml(content.text)}</p>`;
+        case 'list': return `<ul>${content.items.map(item => `<li>${escapeHtml(item)}</li>`).join('\n')}</ul>`;
+        case 'projects': return content.projects.map(project => `
+        <div class="project">
+          <h3>${escapeHtml(project.title)}</h3>
+          <p>${escapeHtml(project.description)}${project.url ? ` <a href="${escapeHtml(project.url)}">View Project</a>` : ''}</p>
+          ${project.tags ? `<p class="tags">${project.tags.map(tag => `<code>${escapeHtml(tag)}</code>`).join(' ')}</p>` : ''}
+        </div>`).join('\n');
+        case 'links': return `<p class="links">${content.links.map(link => `<a href="${escapeHtml(link.url)}">${escapeHtml(link.text)}</a>`).join(' | ')}</p>`;
+        case 'html': return content.html;
+        default: return '';
     }
 }
 
@@ -265,42 +252,29 @@ function renderFooter(footer) {
 }
 
 function renderSite(config) {
-    const container = document.getElementById('app') || document.body;
-    container.innerHTML = '';
+    const body = document.body;
+    const loader = document.getElementById('loading-indicator');
+    body.innerHTML = '';
+    if (loader) body.appendChild(loader);
 
-    // Check background image in custom_data
+    const discordId = config.config?.discordId;
+    
+    // Apply background image if present and valid in custom_data
     if (config.custom_data?.bg_img_url) {
         applyCustomBackground(config.custom_data.bg_img_url);
     }
 
-    // Extract Lanyard details from Product API using the new keys
-    const lanyardConfig = {
-        // Map the new lanyardEnabled key
-        useLanyard: config._product?.lanyardEnabled ?? false, 
-        // Use the endpoint from the product API, or fallback to the default
-        lanyardWsEndpoint: config._product?.lanyardWsEndpoint || 'wss://api.lanyard.rest/socket',
-        // Still look for discordId in product or portfolio config
-        discordId: config._product?.discordId ?? config._product?.discord_id ?? config.config?.discordId
-    };
+    body.innerHTML += renderHeader(config.header, config._sys, discordId);
+    body.innerHTML += `<main>${config.sections.map(section => renderSection(section)).join('\n')}</main>`;
+    body.innerHTML += renderFooter(config.footer);
 
-    let html = renderHeader(config.header, config.custom_data, lanyardConfig);
-    
-    // Grid layout wrapper for middle and bottom sections
-    html += `<main class="sections-grid">`;
-    html += config.sections.map((section, idx) => renderSection(section, idx)).join('\n');
-    html += `</main>`;
-
-    html += renderFooter(config.footer);
-    container.innerHTML = html;
-
-    // Initialize Lanyard WebSocket
-    if (lanyardConfig.useLanyard && lanyardConfig.discordId) {
-        initLanyard(lanyardConfig.discordId, lanyardConfig.lanyardWsEndpoint);
+    // Initialize Lanyard if eligible
+    if (config._sys?.useLanyard && discordId) {
+        initLanyard(discordId, config._sys.lanyardWsEndpoint);
     }
 }
 
 function escapeHtml(text) {
-    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
