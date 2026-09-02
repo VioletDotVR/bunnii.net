@@ -90,7 +90,7 @@ async function fetchPortfolio(apiBaseUrl, attempt = 1) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
     try {
-        const endpoint = `${apiBaseUrl}/api/v3/portfolio/${encodeURIComponent(API_CONFIG.profileId)}`;
+        const endpoint = `${apiBaseUrl}/api/v4/portfolio/${encodeURIComponent(API_CONFIG.profileId)}`;
         const response = await fetch(endpoint, {
             signal: controller.signal, headers: { 'Content-Type': 'application/json' }
         });
@@ -172,15 +172,12 @@ function validateConfig(data) {
 }
 
 // Render Functions based on sketch layout
-function renderHeader(header, customData, lanyardConfig) {
-    // Extract the new owner_profile structure, defaulting to an empty object
-    const owner = customData?.owner_profile || {};
-    
+function renderHeader(header, config, lanyardConfig) {
     // Prioritize the owner profile avatar, then fall back to previous logic
-    const profilePicUrl = owner.avatar_url || customData?.profile_picture_url || customData?.avatar_url || 'https://via.placeholder.com/120';
+    const profilePicUrl = config.avatar_url || config.profile_picture_url || config.avatar_url || 'https://via.placeholder.com/120';
     
     // Use the owner name, fallback to the standard header name
-    const displayName = owner.name || header.name;
+    const displayName = config.first_name || header.name;
 
     let statusHTML = '';
     if (lanyardConfig?.useLanyard && lanyardConfig?.discordId) {
@@ -195,14 +192,14 @@ function renderHeader(header, customData, lanyardConfig) {
 
     // Build the badges dynamically based on what is available in owner_profile
     let badgesHTML = '';
-    if (owner.pronouns) {
-        badgesHTML += `<span class="badge">${escapeHtml(owner.pronouns)}</span>`;
+    if (config.pronouns) {
+        badgesHTML += `<span class="badge">${escapeHtml(config.pronouns)}</span>`;
     }
-    if (owner.age) {
-        badgesHTML += `<span class="badge">${escapeHtml(String(owner.age))} yrs</span>`;
+    if (config.age) {
+        badgesHTML += `<span class="badge">${escapeHtml(String(config.age))} yrs</span>`;
     }
-    if (typeof owner.relationship === 'boolean') {
-        const relText = owner.relationship ? 'Taken 💖' : 'Single 💔';
+    if (typeof config.relationship === 'boolean') {
+        const relText = config.relationship ? 'Taken 💖' : 'Single 💔';
         badgesHTML += `<span class="badge badge-pink">${relText}</span>`;
     }
 
@@ -213,7 +210,7 @@ function renderHeader(header, customData, lanyardConfig) {
         <div class="profile-header-info">
           <h1>
             ${escapeHtml(displayName)} 
-            ${owner.username ? `<span class="owner-username">@${escapeHtml(owner.username)}</span>` : ''}
+            ${config.username ? `<span class="owner-username">@${escapeHtml(config.username)}</span>` : ''}
           </h1>
           ${badgesHTML ? `<div class="profile-badges">${badgesHTML}</div>` : ''}
           <p class="tagline">${escapeHtml(header.tagline)}</p>
@@ -283,7 +280,7 @@ function renderSite(config) {
         discordId: config._product?.discordId ?? config._product?.discord_id ?? config.config?.discordId
     };
 
-    let html = renderHeader(config.header, config.custom_data, lanyardConfig);
+    let html = renderHeader(config.header, config.config, lanyardConfig);
     
     // Grid layout wrapper for middle and bottom sections
     html += `<main class="sections-grid">`;
