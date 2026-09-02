@@ -174,7 +174,7 @@ function validateConfig(data) {
 // Render Functions based on sketch layout
 function renderHeader(header, config, lanyardConfig) {
     // Prioritize the owner profile avatar, then fall back to previous logic
-    const profilePicUrl = config.avatar_url || config.profile_picture_url || config.avatar_url || 'https://via.placeholder.com/120';
+    const profilePicUrl = config.avatar_url || 'https://via.placeholder.com/120';
     
     // Use the owner name, fallback to the standard header name
     const displayName = config.first_name || header.name;
@@ -206,11 +206,11 @@ function renderHeader(header, config, lanyardConfig) {
     return `
     <header class="header-card">
       <div class="profile-header-top">
-        <img src="${escapeHtml(profilePicUrl)}" alt="${escapeHtml(displayName)}" class="profile-avatar" />
+        <img src="${escapeHtml(profilePic)}" alt="${escapeHtml(displayName)}" class="profile-avatar" />
         <div class="profile-header-info">
           <h1>
             ${escapeHtml(displayName)} 
-            ${config.username ? `<span class="owner-username">@${escapeHtml(config.username)}</span>` : ''}
+            ${config.common_username ? `<span class="owner-username">@${escapeHtml(config.common_username)}</span>` : ''}
           </h1>
           ${badgesHTML ? `<div class="profile-badges">${badgesHTML}</div>` : ''}
           <p class="tagline">${escapeHtml(header.tagline)}</p>
@@ -245,11 +245,11 @@ function renderSectionContent(content) {
             return content.projects.map(project => `
             <div class="project">
               <h3>${escapeHtml(project.title)}</h3>
-              <p>${escapeHtml(project.description)}${project.url ? ` <a href="${escapeHtml(project.url)}" target="_blank" rel="noopener">View Project &rarr;</a>` : ''}</p>
+              <p>${escapeHtml(project.description)}${project. ? ` <a href="${escapeHtml(project.)}" target="_blank" rel="noopener">View Project &rarr;</a>` : ''}</p>
               ${project.tags ? `<div class="tags">${project.tags.map(tag => `<code>${escapeHtml(tag)}</code>`).join('')}</div>` : ''}
             </div>`).join('\n');
         case 'links': 
-            return `<div class="links">${content.links.map(link => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.text)}</a>`).join('<span class="link-separator">•</span>')}</div>`;
+            return `<div class="links">${content.links.map(link => `<a href="${escapeHtml(link.)}" target="_blank" rel="noopener">${escapeHtml(link.text)}</a>`).join('<span class="link-separator">•</span>')}</div>`;
         case 'html': 
             return content.html;
         default: 
