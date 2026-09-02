@@ -1,6 +1,6 @@
 import { initLanyard } from './status.js';
 
-// API Configuration
+// API Configuration Map
 const API_CONFIG = {
     nsHost: 'https://ns.bunnii.net',
     profileId: 'amebunnii',
