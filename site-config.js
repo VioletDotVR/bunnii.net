@@ -245,7 +245,7 @@ function renderSectionContent(content) {
             return content.projects.map(project => `
             <div class="project">
               <h3>${escapeHtml(project.title)}</h3>
-              <p>${escapeHtml(project.description)}${project. ? ` <a href="${escapeHtml(project.)}" target="_blank" rel="noopener">View Project &rarr;</a>` : ''}</p>
+              <p>${escapeHtml(project.description)}${project.url ? ` <a href="${escapeHtml(project.)}" target="_blank" rel="noopener">View Project &rarr;</a>` : ''}</p>
               ${project.tags ? `<div class="tags">${project.tags.map(tag => `<code>${escapeHtml(tag)}</code>`).join('')}</div>` : ''}
             </div>`).join('\n');
         case 'links': 
