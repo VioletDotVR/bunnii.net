@@ -11,9 +11,9 @@ const API_CONFIG = {
 
 // Fallback configuration
 const FALLBACK_CONFIG = {
-    header: { name: "miaadev", tagline: "Software Developer" },
+    header: { name: "VioletDot", tagline: "I'm a cool person :3" },
     sections: [{ legend: "About", content: { type: 'text', text: "Loading failed. Please try again later." } }],
-    footer: { text: `© ${new Date().getFullYear()} miaadev.` }
+    footer: { text: "Made with 🩷 by Violet" }
 };
 
 function showLoading() {
@@ -64,7 +64,7 @@ async function resolveNameserverRecord() {
     }
 }
 
-// UPDATED: Fetch Product (v1) - Now includes Lanyard Config fields
+// Fetch Product (v1)
 async function fetchProduct(apiBaseUrl, attempt = 1) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
@@ -151,7 +151,6 @@ async function fetchConfig(attempt = 1) {
         clearTimeout(timeoutId);
         if (!validateConfig(portfolioData)) throw new Error('Invalid configuration format received from API');
         
-        // Attach product-level Lanyard config to portfolio payload
         portfolioData._product = productResult || {};
         return portfolioData;
     } catch (error) {
@@ -171,16 +170,13 @@ function validateConfig(data) {
         data.footer && typeof data.footer.text === 'string');
 }
 
-// Render Functions based on sketch layout
-function renderHeader(header, config, lanyardConfig) {
-    // Prioritize the owner profile avatar, then fall back to previous logic
-    const profilePicUrl = config.avatar_url || 'https://via.placeholder.com/120';
-    
-    // Use the owner name, fallback to the standard header name
-    const displayName = config.first_name || header.name;
+// Render Header Block
+function renderHeader(header, userConfig = {}, lanyardConfig = {}) {
+    const profilePicUrl = userConfig.avatar_url || 'https://via.placeholder.com/120';
+    const displayName = userConfig.first_name || header.name;
 
     let statusHTML = '';
-    if (lanyardConfig?.useLanyard && lanyardConfig?.discord_id) {
+    if (lanyardConfig.useLanyard && lanyardConfig.discordId) {
         statusHTML = `
         <div class="discord-status-container" id="discord-status-container">
             <div class="status-dot offline" id="status-dot"></div>
@@ -190,27 +186,26 @@ function renderHeader(header, config, lanyardConfig) {
         </div>`;
     }
 
-    // Build the badges dynamically based on what is available in owner_profile
     let badgesHTML = '';
-    if (config.pronouns) {
-        badgesHTML += `<span class="badge">${escapeHtml(config.pronouns)}</span>`;
+    if (userConfig.pronouns) {
+        badgesHTML += `<span class="badge">${escapeHtml(userConfig.pronouns)}</span>`;
     }
-    if (config.age) {
-        badgesHTML += `<span class="badge">${escapeHtml(String(config.age))} yrs</span>`;
+    if (userConfig.age) {
+        badgesHTML += `<span class="badge">${escapeHtml(String(userConfig.age))} yrs</span>`;
     }
-    if (typeof config.relationship === 'boolean') {
-        const relText = config.relationship ? 'Taken 💖' : 'Single 💔';
+    if (typeof userConfig.relationship === 'boolean') {
+        const relText = userConfig.relationship ? 'Taken 💖' : 'Single 💔';
         badgesHTML += `<span class="badge badge-pink">${relText}</span>`;
     }
 
     return `
     <header class="header-card">
       <div class="profile-header-top">
-        <img src="${escapeHtml(profilePic)}" alt="${escapeHtml(displayName)}" class="profile-avatar" />
+        <img src="${escapeHtml(profilePicUrl)}" alt="${escapeHtml(displayName)}" class="profile-avatar" />
         <div class="profile-header-info">
           <h1>
             ${escapeHtml(displayName)} 
-            ${config.common_username ? `<span class="owner-username">@${escapeHtml(config.common_username)}</span>` : ''}
+            ${userConfig.common_username ? `<span class="owner-username">@${escapeHtml(userConfig.common_username)}</span>` : ''}
           </h1>
           ${badgesHTML ? `<div class="profile-badges">${badgesHTML}</div>` : ''}
           <p class="tagline">${escapeHtml(header.tagline)}</p>
@@ -222,7 +217,6 @@ function renderHeader(header, config, lanyardConfig) {
 }
 
 function renderSection(section, index) {
-    // Add grid classification based on position to mirror layout sketch
     const gridClass = index < 2 ? 'grid-item-half' : 'grid-item-full';
 
     return `
@@ -236,22 +230,24 @@ function renderSection(section, index) {
 }
 
 function renderSectionContent(content) {
+    if (!content) return '';
+
     switch (content.type) {
         case 'text': 
-            return `<p>${escapeHtml(content.text)}</p>`;
+            return `<p>${escapeHtml(content.text).replace(/\r?\n/g, '<br>')}</p>`;
         case 'list': 
-            return `<ul>${content.items.map(item => `<li>${escapeHtml(item)}</li>`).join('\n')}</ul>`;
+            return `<ul>${(content.items || []).map(item => `<li>${escapeHtml(item)}</li>`).join('\n')}</ul>`;
         case 'projects': 
-            return content.projects.map(project => `
+            return (content.projects || []).map(project => `
             <div class="project">
               <h3>${escapeHtml(project.title)}</h3>
               <p>${escapeHtml(project.description)}${project.url ? ` <a href="${escapeHtml(project.url)}" target="_blank" rel="noopener">View Project &rarr;</a>` : ''}</p>
-              ${project.tags ? `<div class="tags">${project.tags.map(tag => `<code>${escapeHtml(tag)}</code>`).join('')}</div>` : ''}
+              ${project.tags && project.tags.length ? `<div class="tags">${project.tags.map(tag => `<code>${escapeHtml(tag)}</code>`).join('')}</div>` : ''}
             </div>`).join('\n');
         case 'links': 
-            return `<div class="links">${content.links.map(link => `<a href="${escapeHtml(link.)}" target="_blank" rel="noopener">${escapeHtml(link.text)}</a>`).join('<span class="link-separator">•</span>')}</div>`;
+            return `<div class="links">${(content.links || []).map(link => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.text)}</a>`).join('<span class="link-separator">•</span>')}</div>`;
         case 'html': 
-            return content.html;
+            return content.html || '';
         default: 
             return '';
     }
@@ -265,32 +261,27 @@ function renderSite(config) {
     const container = document.getElementById('app') || document.body;
     container.innerHTML = '';
 
-    // Check background image in custom_data
-    if (config.config.bg_url) {
-        applyCustomBackground(config.config.bg_url);
+    const userConfig = config.config || {};
+
+    if (userConfig.bg_url) {
+        applyCustomBackground(userConfig.bg_url);
     }
 
-    // Extract Lanyard details from Product API using the new keys
     const lanyardConfig = {
-        // Map the new lanyardEnabled key
-        useLanyard: config._product?.lanyardEnabled ?? false, 
-        // Use the endpoint from the product API, or fallback to the default
+        useLanyard: config._product?.lanyardEnabled ?? true, 
         lanyardWsEndpoint: config._product?.lanyardWsEndpoint || 'wss://api.lanyard.rest/socket',
-        // Still look for discordId in product or portfolio config
-        discordId: config._product?.discordId ?? config._product?.discord_id ?? config.config?.discord_id
+        discordId: config._product?.discordId || userConfig.discord_id
     };
 
-    let html = renderHeader(config.header, config.config, lanyardConfig);
+    let html = renderHeader(config.header, userConfig, lanyardConfig);
     
-    // Grid layout wrapper for middle and bottom sections
     html += `<main class="sections-grid">`;
-    html += config.sections.map((section, idx) => renderSection(section, idx)).join('\n');
+    html += (config.sections || []).map((section, idx) => renderSection(section, idx)).join('\n');
     html += `</main>`;
 
     html += renderFooter(config.footer);
     container.innerHTML = html;
 
-    // Initialize Lanyard WebSocket
     if (lanyardConfig.useLanyard && lanyardConfig.discordId) {
         initLanyard(lanyardConfig.discordId, lanyardConfig.lanyardWsEndpoint);
     }
