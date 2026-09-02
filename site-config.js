@@ -172,10 +172,7 @@ function validateConfig(data) {
 }
 
 // Render Functions based on sketch layout
-function renderHeader(header, configFoff, lanyardConfig) {
-    const config = lanyardConfig;
-
-    
+function renderHeader(header, config, lanyardConfig) {
     // Prioritize the owner profile avatar, then fall back to previous logic
     const profilePicUrl = config.avatar_url || config.profile_picture_url || config.avatar_url || 'https://via.placeholder.com/120';
     
@@ -183,7 +180,7 @@ function renderHeader(header, configFoff, lanyardConfig) {
     const displayName = config.first_name || header.name;
 
     let statusHTML = '';
-    if (lanyardConfig?.useLanyard && lanyardConfig?.discordId) {
+    if (lanyardConfig?.useLanyard && lanyardConfig?.discord_id) {
         statusHTML = `
         <div class="discord-status-container" id="discord-status-container">
             <div class="status-dot offline" id="status-dot"></div>
@@ -269,8 +266,8 @@ function renderSite(config) {
     container.innerHTML = '';
 
     // Check background image in custom_data
-    if (config.custom_data?.bg_img_url) {
-        applyCustomBackground(config.custom_data.bg_img_url);
+    if (config.config.bg_url) {
+        applyCustomBackground(config.config.bg_url);
     }
 
     // Extract Lanyard details from Product API using the new keys
@@ -280,7 +277,7 @@ function renderSite(config) {
         // Use the endpoint from the product API, or fallback to the default
         lanyardWsEndpoint: config._product?.lanyardWsEndpoint || 'wss://api.lanyard.rest/socket',
         // Still look for discordId in product or portfolio config
-        discordId: config._product?.discordId ?? config._product?.discord_id ?? config.config?.discordId
+        discordId: config._product?.discordId ?? config._product?.discord_id ?? config.config?.discord_id
     };
 
     let html = renderHeader(config.header, config.config, lanyardConfig);
