@@ -172,7 +172,10 @@ function validateConfig(data) {
 }
 
 // Render Functions based on sketch layout
-function renderHeader(header, config, lanyardConfig) {
+function renderHeader(header, configFoff, lanyardConfig) {
+    const config = lanyardConfig;
+
+    
     // Prioritize the owner profile avatar, then fall back to previous logic
     const profilePicUrl = config.avatar_url || config.profile_picture_url || config.avatar_url || 'https://via.placeholder.com/120';
     
